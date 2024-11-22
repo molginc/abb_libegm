@@ -821,9 +821,9 @@ private:
        *
        * \param configurations specifying the trajectory interface's initial configurations.
        */
-      MotionStep(const TrajectoryConfiguration& configurations)
+      MotionStep(const TrajectoryConfiguration& configurations) // THESE MOTION STEP CONFIGURATIONS CONTROL HOW STRICT GOAL CHECKING IS IN EGM_TRAJECTORY_INTERFACE
       :
-      CONDITION(0.005),
+      CONDITION(0.5),
       RAMP_DOWN_STOP_DURATION(1.0),
       STATIC_GOAL_DURATION(5.0),
       STATIC_GOAL_DURATION_SHORT(0.1),

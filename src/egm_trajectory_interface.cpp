@@ -42,6 +42,9 @@
 
 #include "abb_libegm/egm_common_auxiliary.h"
 #include "abb_libegm/egm_trajectory_interface.h"
+#include <iostream>
+#include <chrono>
+#include <ctime>
 
 namespace abb
 {
@@ -244,6 +247,13 @@ void EGMTrajectoryInterface::TrajectoryMotion::MotionStep::prepareNormalGoal(con
 {
   unsigned int robot_joints = data.feedback.robot().joints().position().values_size();
   unsigned int external_joints = data.feedback.external().joints().position().values_size();
+  std::cout << "Preparing next normal goal" << std::endl;
+  auto real_pose = data.feedback.robot().cartesian().pose();
+  auto goal_pose = internal_goal.robot().cartesian().pose();
+  std::cout << "Real Pose: Position(" << real_pose.position().x() << ", " << real_pose.position().y() << ", " << real_pose.position().z() << "), "
+            << "Orientation(" << real_pose.quaternion().u0() << ", " << real_pose.quaternion().u1() << ", " << real_pose.quaternion().u2() << ", " << real_pose.quaternion().u3() << ")" << std::endl;
+  std::cout << "Goal Pose: Position(" << goal_pose.position().x() << ", " << goal_pose.position().y() << ", " << goal_pose.position().z() << "), "
+            << "Orientation(" << goal_pose.quaternion().u0() << ", " << goal_pose.quaternion().u1() << ", " << goal_pose.quaternion().u2() << ", " << goal_pose.quaternion().u3() << ")" << std::endl;
 
   data.mode = (external_goal.robot().has_cartesian() ? EGMPose : EGMJoint);
 
@@ -267,6 +277,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::MotionStep::prepareNormalGoal(con
   // Reset velocity and acceleration values, if it is the last point in the current trajectory.
   if (last_point)
   {
+    
     internal_goal.set_reach(true);
 
     // Reset robot joint values.
@@ -348,7 +359,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::MotionStep::prepareStaticGoal(con
 bool EGMTrajectoryInterface::TrajectoryMotion::MotionStep::conditionMet()
 {
   condition_met_ = true;
-
+  auto start = std::chrono::system_clock::now();
   switch (data.mode)
   {
     case EGMJoint:
@@ -363,6 +374,7 @@ bool EGMTrajectoryInterface::TrajectoryMotion::MotionStep::conditionMet()
 
     case EGMPose:
     {
+      
       // Position.
       checkConditions(internal_goal.robot().cartesian().pose().position(),
                       data.feedback.robot().cartesian().pose().position());
@@ -376,7 +388,17 @@ bool EGMTrajectoryInterface::TrajectoryMotion::MotionStep::conditionMet()
     }
     break;
   }
+  auto end = std::chrono::system_clock::now();
 
+  if (condition_met_)
+  {
+    std::chrono::duration<double> elapsed_seconds = end-start;
+    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    // const auto now = std::chrono::system_clock::now();
+    // const std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    // std::cout << "Goal Condition met and computation took " << elapsed_seconds.count() << "s to complete at time "<< std::ctime(&end_time) << std::endl;
+    // std::cout << "Goal Condition Met at time "<< std::ctime(&now_c) << std::endl;
+  }
   return condition_met_;
 }
 
@@ -770,7 +792,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
 {
   boost::lock_guard<boost::mutex> data_lock(data_.mutex);
   boost::lock_guard<boost::mutex> trajectory_lock(trajectories_.mutex);
-
+  // printf("\n[EGM Trajectory Interface] generateOutputs - Preparing Trajectory Motion...");
   // Prepare for trajectory motion.
   prepare(inputs);
 
@@ -791,7 +813,10 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
     // Prepare for any new goal.
     if (data_.has_new_goal)
     {
-      // Update the interpolator.
+      
+      const auto now = std::chrono::system_clock::now();
+      const std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+      std::cout << "Preparing new goal at time "<< std::ctime(&now_c) << std::endl;      // Update the interpolator.
       motion_step_.updateInterpolator();
 
       // Update the controller.
@@ -803,7 +828,6 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
     {
       // Evaluate the interpolator.
       motion_step_.evaluateInterpolator();
-
       // Calculate the outputs to the robot controller.
       controller_.calculate(p_outputs, &motion_step_);
     }
@@ -812,6 +836,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
   // Update the execution progress.
   if(p_outputs)
   {
+    // printf("\n[EGM Trajectory Interface] generateOutputs - Updating Execution Progress...");
     data_.execution_progress.set_state(state_manager_.mapState());
     data_.execution_progress.set_sub_state(state_manager_.mapSubState());
     data_.execution_progress.mutable_inputs()->CopyFrom(inputs.current());
@@ -821,6 +846,8 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
     data_.execution_progress.set_time_passed(motion_step_.data.time_passed);
     data_.execution_progress.clear_active_trajectory();
     data_.execution_progress.mutable_active_trajectory()->add_points()->CopyFrom(motion_step_.external_goal);
+
+    // printf("\n[EGM Trajectory Interface] generateOutputs - Active Trajectory Time Passed: %f", motion_step_.data.time_passed);
     if (trajectories_.p_current)
     {
       trajectories_.p_current->copyTo(data_.execution_progress.mutable_active_trajectory());
@@ -833,6 +860,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::generateOutputs(Output* p_outputs
     {
       data_.execution_progress.set_pending_trajectories((unsigned int) trajectories_.primary_queue.size());
     }
+    // std::cout << std::chrono::system_clock::now << " Pending trajectories: " << data_.execution_progress.pending_trajectories() << std::endl;
     data_.has_updated_execution_progress = true;
   }
 }
@@ -918,8 +946,11 @@ void EGMTrajectoryInterface::TrajectoryMotion::processNormalState()
           {
             if (motion_step_.internal_goal.reach())
             {
-              if (motion_step_.conditionMet())
+              // This check is introducing a big delay in trajectory execution. Need to find a better way to check if the goal is reached.
+              // if (motion_step_.conditionMet())
+              if(1)
               {
+                motion_step_.conditionMet();
                 updateNormalGoal();
               }
             }
@@ -933,6 +964,7 @@ void EGMTrajectoryInterface::TrajectoryMotion::processNormalState()
         {
           if (!trajectories_.primary_queue.empty())
           {
+            printf("[EGM Trajectory Interface] processNormalState - Processing next trajectory in queue...");
             trajectories_.p_current = trajectories_.primary_queue.front();
             trajectories_.primary_queue.pop_front();
             updateNormalGoal();
@@ -950,6 +982,9 @@ void EGMTrajectoryInterface::TrajectoryMotion::processNormalState()
 
 void EGMTrajectoryInterface::TrajectoryMotion::processRampDownState()
 {
+  const auto now = std::chrono::system_clock::now();
+  const std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+  std::cout << "Proccessing Ramp Down at time "<< std::ctime(&now_c) << std::endl;
   switch (state_manager_.getSubState())
   {
     case None:
@@ -1155,7 +1190,9 @@ bool EGMTrajectoryInterface::TrajectoryMotion::addTrajectory(const trajectory::T
   boost::lock_guard<boost::mutex> trajectory_lock(trajectories_.mutex);
 
   bool accepted = state_manager_.verifyState(Normal, Running);
-
+  const auto now = std::chrono::system_clock::now();
+  const std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+  std::cout << "Added Trajectory to Queue at time "<< std::ctime(&now_c) << std::endl;
   if (accepted)
   {
     if (override_trajectories)
@@ -1163,7 +1200,7 @@ bool EGMTrajectoryInterface::TrajectoryMotion::addTrajectory(const trajectory::T
       trajectories_.temporary_queue.clear();
       trajectories_.temporary_queue.push_back(p_traj);
       data_.pending_events.do_ramp_down = true;
-      data_.pending_events.do_stop = true;
+      data_.pending_events.do_stop = false;
       data_.pending_events.do_discard = true;
       data_.pending_events.do_resume = true;
     }
@@ -1337,6 +1374,7 @@ EGMBaseInterface(io_service, port_number),
 configuration_(configuration),
 trajectory_motion_(configuration)
 {
+  configuration_.active.base.use_logging = false;
   if (configuration_.active.base.use_logging)
   {
     std::stringstream ss;
