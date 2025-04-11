@@ -35,7 +35,8 @@ if(WIN32)
   endforeach()
 endif()
 
-find_package(Protobuf REQUIRED)
+set(Protobuf_PROTOC_EXECUTABLE "/usr/bin/protoc")
+find_package(Protobuf 3.6 REQUIRED)
 
 # Make sure protoc is present, as apparently the above find_package() doesn't check that.
 if(NOT PROTOBUF_PROTOC_EXECUTABLE)
