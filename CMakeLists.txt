@@ -35,11 +35,11 @@ if(WIN32)
   endforeach()
 endif()
 
-set(Protobuf_PROTOC_EXECUTABLE "/usr/bin/protoc")
+find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
 find_package(Protobuf 3.6 REQUIRED)
 
 # Make sure protoc is present, as apparently the above find_package() doesn't check that.
-if(NOT PROTOBUF_PROTOC_EXECUTABLE)
+if(NOT Protobuf_PROTOC_EXECUTABLE)
   message(FATAL_ERROR "Cannot find required 'protoc', cannot process Protobuf files without it. Aborting.")
 endif()
 
