@@ -201,6 +201,12 @@ const std::string& EGMControllerInterface::callback(const UDPServerData& server_
     // Constuct the reply message.
     outputs_.constructReply(configuration_.active);
 
+    // Count a non-empty output that produced no reply
+    if (outputs_.reply().empty() && outputs_.current.ByteSizeLong() > 0)
+    {
+      ++rejected_reply_count_;
+    }
+
     // Prepare for the next callback.
     inputs_.updatePrevious();
     outputs_.updatePrevious();
