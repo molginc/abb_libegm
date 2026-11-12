@@ -37,6 +37,8 @@
 #ifndef EGM_CONTROLLER_INTERFACE_H
 #define EGM_CONTROLLER_INTERFACE_H
 
+#include <atomic>
+
 #include "egm_base_interface.h"
 
 namespace abb
@@ -93,6 +95,14 @@ public:
    * \param outputs containing the outputs.
    */
   void write(const wrapper::Output& outputs);
+
+  /**
+   * \brief Count the EGM messages that produced no reply, i.e. the messages for which abb_libegm rejected the
+   * current outputs (for example a velocity without a position while velocity outputs are used).
+   *
+   * \return unsigned int containing the count since construction.
+   */
+  unsigned int rejectedReplyCount() const { return rejected_reply_count_.load(); }
 
 private:
   /**
@@ -210,6 +220,11 @@ private:
    * \brief The interface's controller motion data (between internal loop and external controller loop).
    */
   ControllerMotion controller_motion_;
+
+  /**
+   * \brief Count of EGM messages that produced no reply, updated by callback.
+   */
+  std::atomic<unsigned int> rejected_reply_count_{0};
 };
 
 } // end namespace egm
