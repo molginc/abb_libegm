@@ -97,8 +97,8 @@ public:
   void write(const wrapper::Output& outputs);
 
   /**
-   * \brief Count the outputs written by the external control loop that produced no reply, i.e. that abb_libegm
-   * rejected (for example a velocity without a position while velocity outputs are used).
+   * \brief Count the EGM messages that produced no reply, i.e. the messages for which abb_libegm rejected the
+   * current outputs (for example a velocity without a position while velocity outputs are used).
    *
    * \return unsigned int containing the count since construction.
    */
@@ -222,7 +222,7 @@ private:
   ControllerMotion controller_motion_;
 
   /**
-   * \brief Count of non-empty outputs that produced no reply, updated by callback.
+   * \brief Count of EGM messages that produced no reply, updated by callback.
    */
   std::atomic<unsigned int> rejected_reply_count_{0};
 };
